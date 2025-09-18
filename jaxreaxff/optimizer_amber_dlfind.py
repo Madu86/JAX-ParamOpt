@@ -70,6 +70,120 @@ def extractCoordinates(flist):
 
     return coordinates
 
+
+def run_sander_calculation(conf, config_dir):
+    """
+    Run sander calculation for a single configuration.
+    Assumes files are already copied to the job directory.
+    """
+    job_dir = os.path.join(os.path.abspath(config_dir), f"{conf}_job")
+
+    try:
+        # Change to job directory for calculations
+        original_cwd = os.path.abspath(config_dir)
+        os.chdir(job_dir)
+
+        # Clean slate before cpptraj
+        for pattern in [f"{conf}.rst7", f"{conf}.rst7.*"]:
+            for file in glob.glob(pattern):
+                try:
+                    os.remove(file)
+                except OSError:
+                    pass
+
+        # Run cpptraj
+        cpptraj_cmd = ["cpptraj", "-i", f"{conf}.cptin"]
+        result = subprocess.run(cpptraj_cmd, capture_output=True, text=True)
+
+        # Write log and check for success based on output content, not exit code
+        with open(f"{conf}_cpptraj_initial.log", "w") as logf:
+            logf.write(result.stdout)
+            logf.write(result.stderr)
+
+        # Check if cpptraj actually failed (look for error patterns in output)
+        if "Error:" in result.stderr or "FATAL" in result.stderr:
+            raise subprocess.CalledProcessError(result.returncode, cpptraj_cmd, result.stderr)
+
+        # Normalize cpptraj output
+        if os.path.exists(f"{conf}.rst7"):
+            pass  # already good
+        else:
+            # Find numbered variant
+            candidates = glob.glob(f"{conf}.rst7.*")
+            if candidates:
+                # Sort naturally and take first
+                candidates.sort()
+                shutil.move(candidates[0], f"{conf}.rst7")
+            else:
+                raise FileNotFoundError(f"cpptraj did not produce {conf}.rst7")
+
+        # Run sander
+        sander_cmd = [
+            "sander",
+            "-i", f"{conf}.mdin",
+            "-O",
+            "-o", f"{conf}.out",
+            "-p", "prmtop",
+            "-c", f"{conf}.rst7",
+            "-r", f"{conf}.restrt"
+        ]
+        result = subprocess.run(sander_cmd, capture_output=True, text=True)
+
+        # Write log and check for success based on output content, not exit code
+        with open(f"{conf}_sander.log", "w") as logf:
+            logf.write(result.stdout)
+            logf.write(result.stderr)
+
+        # Check if sander actually failed (look for error patterns in output)
+        if result.returncode != 0 and ("ERROR" in result.stderr or "FATAL" in result.stderr):
+            raise subprocess.CalledProcessError(result.returncode, sander_cmd, result.stderr)
+
+        # Move path files
+        path_files = ["path_active.xyz", "path_force.xyz", "path.xyz"]
+        for path_file in path_files:
+            if os.path.exists(path_file):
+                shutil.move(path_file, f"{conf}.{path_file}")
+
+        # Run cpptraj for post-processing
+        cpptraj_post_cmd = [
+            "cpptraj",
+            "-p", "prmtop",
+            "-y", f"{conf}.restrt",
+            "-x", f"{conf}_post.xyz"
+        ]
+        result = subprocess.run(cpptraj_post_cmd, capture_output=True, text=True)
+
+        # Write log and check for success based on output content, not exit code
+        with open(f"{conf}_cpptraj.log", "w") as logf:
+            logf.write(result.stdout)
+            logf.write(result.stderr)
+
+        # Check if cpptraj actually failed (look for error patterns in output)
+        if "Error:" in result.stderr or "FATAL" in result.stderr:
+            raise subprocess.CalledProcessError(result.returncode, cpptraj_post_cmd, result.stderr)
+
+        # Copy results back to conf_dir
+        for item in os.listdir(job_dir):
+            src = os.path.join(job_dir, item)
+            dst = os.path.join(config_dir, item)
+            if os.path.isfile(src):
+                shutil.copy2(src, dst)
+
+        # Return to original directory
+        os.chdir(original_cwd)
+
+        return f"Completed: {conf}"
+
+    except Exception as e:
+        # Ensure we return to original directory
+        try:
+            os.chdir(original_cwd)
+        except:
+            pass
+        return f"Error in {conf}: {str(e)}"
+    
+
+
 # AB: Clean the outdir folder and save best iteration to the orriginal geo_dir path. 
 def cleanup_and_restore_best(outdir, dest_dir, best_iteration):
     """
