@@ -623,7 +623,7 @@ def ObjectiveFunction(scipy_params, *args):
     #sys.exit()
     return loss, list(grad)
 
-def ff_opt(prmtop_dir, params_dir, geo_dir, amber_dir, min_steps, opt_loops, ref_ene, outdir, min_interval):
+def ff_opt(prmtop_dir, params_dir, geo_dir, amber_dir, min_steps, opt_loops, ref_ene, outdir, min_interval, ncores=16):
     initial_guess='initial_guess'
     algorithm='L-BFGS-B'
     # maxiter=1000
@@ -706,7 +706,7 @@ def ff_opt(prmtop_dir, params_dir, geo_dir, amber_dir, min_steps, opt_loops, ref
 
     minimization_result=minimize(ObjectiveFunction, guess, jac=True, \
            args=(coordinates, boxVectors, ref_ene, params_dict, optvars_dict, prmtopomm, torsion_indices, 
-                 min_steps, outdir, prmtop_dir, min_interval, crd_flist, geo_dir, amber_dir), \
+                 min_steps, outdir, prmtop_dir, min_interval, crd_flist, geo_dir, amber_dir, ncores), \
            bounds=bounds, method=algorithm, options={'maxiter':opt_loops, 'eps': step_size})
 
     print("Losses:", losses)
@@ -801,10 +801,14 @@ def main():
       type=int,
       default=5,
       help='Number of parameter optimization iterations between geometry optimization')
+    parser.add_argument('--ncores', metavar='cores',
+      type=int,
+      default=16,
+      help='Number of CPU cores for parallel sander calculations')
 
     args = parser.parse_args()
 
-    ff_opt(args.prmtop, args.params, args.geo, args.amber_dir, args.minsteps, args.maxiter, args.reference, args.out, args.mininterval)
+    ff_opt(args.prmtop, args.params, args.geo, args.amber_dir, args.minsteps, args.maxiter, args.reference, args.out, args.mininterval, args.ncores)
 
 if __name__ == "__main__":
     main()
