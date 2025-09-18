@@ -16,6 +16,9 @@ from jaxreaxff.smartformatter import SmartFormatter
 
 from parmedmod import UpdateParmTopCLI
 import os, re, glob, shutil
+import subprocess
+import multiprocessing
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # make global array for loss
 losses = []
