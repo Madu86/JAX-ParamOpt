@@ -186,13 +186,14 @@ def run_sander_calculation(conf, config_dir):
 def run_parallel_sander_calculations(geo_dir, num_cores=16):
     """
     Run parallel sander calculations replacing the external bash script.
+    geo_dir: directory containing the configurations and prmtop file.
+    num_cores: number of parallel processes to use.
     """
 
     # Find the configuration base name (last part)
     conf_base = os.path.basename(geo_dir)
 
-    # The configuration directory contains the prmtop and config files
-    # geo_dir points to the prefix path, but files are in the parent directory
+    # Get absolute path to the configuration directory
     config_dir = os.path.abspath(os.path.dirname(geo_dir))
 
     # Generate configuration names based on NPOINTS
@@ -243,6 +244,12 @@ def run_parallel_sander_calculations(geo_dir, num_cores=16):
                 results.append(error_msg)
                 print(error_msg)
 
+    # Clean up job directories
+    for job_dir in job_dirs:
+        if os.path.exists(job_dir):
+            shutil.rmtree(job_dir)
+
+    return results
 
 # AB: Clean the outdir folder and save best iteration to the orriginal geo_dir path. 
 def cleanup_and_restore_best(outdir, dest_dir, best_iteration):
