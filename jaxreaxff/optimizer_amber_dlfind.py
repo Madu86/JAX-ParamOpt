@@ -76,11 +76,11 @@ def run_sander_calculation(conf, config_dir):
     Run sander calculation for a single configuration.
     Assumes files are already copied to the job directory.
     """
-    job_dir = os.path.join(os.path.abspath(config_dir), f"{conf}_job")
+    job_dir = os.path.join(config_dir, f"{conf}_job")
 
     try:
         # Change to job directory for calculations
-        original_cwd = os.path.abspath(config_dir)
+        original_cwd = config_dir
         os.chdir(job_dir)
 
         # Clean slate before cpptraj
@@ -193,7 +193,7 @@ def run_parallel_sander_calculations(geo_dir, num_cores=16):
 
     # The configuration directory contains the prmtop and config files
     # geo_dir points to the prefix path, but files are in the parent directory
-    config_dir = os.path.dirname(geo_dir)
+    config_dir = os.path.abspath(os.path.dirname(geo_dir))
 
     # Generate configuration names based on NPOINTS
     configurations = [f"{conf_base}_{i:03d}" for i in range(NPOINTS)]
@@ -202,7 +202,46 @@ def run_parallel_sander_calculations(geo_dir, num_cores=16):
     print(f"Configuration directory: {config_dir}")
     print(f"Configuration base: {conf_base}")
 
+    # Prepare job directories and copy files
+    job_dirs = []
+    for conf in configurations:
+        job_dir = os.path.join(config_dir, f"{conf}_job")
+        job_dirs.append(job_dir)
 
+        # Create job directory
+        if os.path.exists(job_dir):
+            shutil.rmtree(job_dir)
+        os.makedirs(job_dir)
+
+        # Copy required files to job directory
+        for filename in ["prmtop", f"{conf}.cptin", f"{conf}.mdin", f"{conf}.disang", f"{conf}.xyz"]:
+            src = os.path.join(config_dir, filename)
+            dst = os.path.join(job_dir, filename)
+            if os.path.exists(src):
+                shutil.copy2(src, dst)
+            else:
+                print(f"Warning: Required file not found: {src}")
+
+    # Use ThreadPoolExecutor instead of ProcessPoolExecutor for JAX compatibility
+    with ThreadPoolExecutor(max_workers=num_cores) as executor:
+        # Submit all tasks - pass config_dir directly
+        futures = {
+            executor.submit(run_sander_calculation, conf, config_dir): conf
+            for conf in configurations
+        }
+
+        # Collect results
+        results = []
+        for future in as_completed(futures):
+            conf = futures[future]
+            try:
+                result = future.result()
+                results.append(result)
+                print(f"Sander calculation result: {result}")
+            except Exception as e:
+                error_msg = f"Error in {conf}: {str(e)}"
+                results.append(error_msg)
+                print(error_msg)
 
 
 # AB: Clean the outdir folder and save best iteration to the orriginal geo_dir path. 
