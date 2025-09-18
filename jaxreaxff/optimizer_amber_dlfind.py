@@ -623,7 +623,7 @@ def ObjectiveFunction(scipy_params, *args):
     #sys.exit()
     return loss, list(grad)
 
-def ff_opt(prmtop_dir, params_dir, geo_dir, amber_dir, min_steps, opt_loops, ref_ene, outdir, min_interval, ncores=16):
+def ff_opt(prmtop_dir, params_dir, geo_dir, amber_dir, min_steps, opt_loops, ref_ene, outdir, energy_out, min_interval, ncores=16):
     initial_guess='initial_guess'
     algorithm='L-BFGS-B'
     # maxiter=1000
@@ -752,7 +752,7 @@ def ff_opt(prmtop_dir, params_dir, geo_dir, amber_dir, min_steps, opt_loops, ref
 
     # AB: Save best energies to a JSON file. Temporary solution. Move function to jaxextract.py script.  
     final_energy_dict = {"best_energy": best_energy}
-    SaveJsonData(final_energy_dict, 'energies.json')
+    SaveJsonData(final_energy_dict, energy_out)
 
     # AB: Save the output files corresponding to the best iteration back to the original folder and cleanup the dir. 
     dest_dir = os.path.dirname(geo_dir)
@@ -789,6 +789,10 @@ def main():
       type=str,
       default="../Datasets/amber/dh_6-7-9-11/jaxout",
       help='Directory to output results')
+    parser.add_argument('--energy_out', metavar='filename',
+      type=str,
+      default="../Datasets/amber/dh_6-7-9-11/energies.json",
+      help='File to output energies along the fitting process')
     parser.add_argument('--minsteps', metavar='steps',
       type=int,
       default=2000,
@@ -808,7 +812,7 @@ def main():
 
     args = parser.parse_args()
 
-    ff_opt(args.prmtop, args.params, args.geo, args.amber_dir, args.minsteps, args.maxiter, args.reference, args.out, args.mininterval, args.ncores)
+    ff_opt(args.prmtop, args.params, args.geo, args.amber_dir, args.minsteps, args.maxiter, args.reference, args.out, args.energy_out, args.mininterval, args.ncores)
 
 if __name__ == "__main__":
     main()
