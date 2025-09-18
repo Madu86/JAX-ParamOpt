@@ -38,8 +38,8 @@ def UpdateParmTopCLI(prmtop_file_name, params, debug=True):
 	command=['parmed']
 	result = subprocess.run(command, input=parmed_buffer, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-	system('mv %s %s.bak' % (prmtop_file_name, prmtop_file_name))
-	system('mv %s.new %s' % (prmtop_file_name, prmtop_file_name))
+	subprocess.run(['mv', prmtop_file_name, f'{prmtop_file_name}.bak'], check=True)
+	subprocess.run(['mv', f'{prmtop_file_name}.new', prmtop_file_name], check=True)
 
 	if(debug):
 		result = subprocess.run(command, input=parmed_check_buffer, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
