@@ -467,7 +467,7 @@ def ObjectiveFunction(scipy_params, *args):
     iteration = iteration + 1
     print("Iteration:", iteration)
 
-    crds, boxVectors, ref_ene, params_dict, optvars_dict, prms, torsions, min_steps, outdir, prmtop_dir, min_interval, crd_flist, geo_dir, amber_dir = args
+    crds, boxVectors, ref_ene, params_dict, optvars_dict, prms, torsions, min_steps, outdir, prmtop_dir, min_interval, crd_flist, geo_dir, amber_dir, ncores = args
 
     print("Updated Parameters:", scipy_params)
 
@@ -518,15 +518,25 @@ def ObjectiveFunction(scipy_params, *args):
     #print("cutp", iteration-1 % min_interval == 0)
 
     if (iteration-1) % min_interval == 0:
-        ierr = os.system('cd %s && rm -rf *.tmp *.log *.out *_optim* *.restrt *.path* *.rst7 *_post.xyz' % (amber_dir))
-        run_task_command="""bash run_task_scipyopt_0.sh > run_task_scipyopt_0.log 2>&1 &
-        pid=$!
-        echo $pid > run_task.pid
-        wait $pid
-        """
-        ierr = os.system(run_task_command)
-        if(ierr != 0):
-            print('Error: Please check the run.log file.')
+        # Clean up previous calculation files
+        job_flist = [s.replace('.xyz', '_job') for s in crd_flist]
+        cleanup_cmd = "rm -rf " + " ".join(job_flist)
+        ierr = os.system(cleanup_cmd)
+
+        # Run parallel sander calculations using embedded Python function
+        try:
+            print(f"Running parallel sander calculations with {ncores} cores...")
+            results = run_parallel_sander_calculations(geo_dir, ncores)
+            print(f"Completed {len(results)} sander calculations")
+
+            # Check if any calculations failed
+            failed_calcs = [r for r in results if "Error" in r]
+            if failed_calcs:
+                print(f"Warning: {len(failed_calcs)} calculations failed:")
+                for failure in failed_calcs:
+                    print(f"  {failure}")
+        except Exception as e:
+            print(f'Error running sander calculations: {e}')
             return
 
     # extract data
